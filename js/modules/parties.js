@@ -73,7 +73,7 @@ async function renderList(el, kind) {
     pager($el.find('.list'), list, (p) => {
       const b = bal.get(Posting.partyAccount(kind, p.id))?.balance || 0;
       return `<a class="list-row" href="#/${kind}/${encodeURIComponent(p.id)}">
-        <div class="thumb"><i class="bi bi-${kind === 'customers' ? 'person' : 'truck'}"></i></div>
+        ${UI.avatar(p.name, 'round')}
         <div class="main"><div class="title">${esc(p.name)} ${p.active ? '' : '<span class="badge text-bg-secondary">Inactive</span>'}</div><div class="sub">${esc(p.phone || p.email || '—')}</div></div>
         <div class="end"><div class="fw-semibold money ${Math.abs(b) > 0.005 ? '' : 'text-body-secondary'}">${balText(b, debitNormal)}</div></div></a>`;
     }, 50, UI.emptyState(`No ${many.toLowerCase()} found`, 'people', canEdit(kind) ? `<button class="btn btn-primary btn-sm mt-3 btn-add">Add ${one.toLowerCase()}</button>` : ''));

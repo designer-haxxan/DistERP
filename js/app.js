@@ -103,6 +103,7 @@ function buildMenu() {
   const u = Auth.user();
   $('#user-name').text(u.name);
   $('#user-role').text(Auth.ROLES[u.role] || u.role);
+  $('#user-avatar').text(UI.initials(u.name));
   $('#brand-name').text(getSettings().business.name || CONFIG.APP_NAME);
   $('#bottom-nav [data-route="pos"]').toggleClass('d-none', !Auth.can('sale.create'));
 }
@@ -129,7 +130,9 @@ async function route() {
     if (token !== routeToken) return;
     currentModule = mod;
     window.scrollTo(0, 0);
+    $c.removeClass('page-enter');
     await mod.render($c[0], { route: name, params: parts.slice(1), setTitle: (t) => $('#topbar-title').text(t) });
+    if (token === routeToken) { void $c[0].offsetWidth; $c.addClass('page-enter'); }
   } catch (e) {
     console.error(e);
     if (token === routeToken) $c.html(UI.errorState(e));
@@ -178,7 +181,7 @@ function showLogin(reason = '') {
 
 $('#login-form').on('submit', async (e) => {
   e.preventDefault();
-  const $btn = $('#login-btn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Signing in…');
+  const $btn = $('#login-btn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span><span>Signing in…</span>');
   $('#login-error').addClass('d-none');
   try {
     await Auth.login($('#login-username').val(), $('#login-password').val());
@@ -186,7 +189,8 @@ $('#login-form').on('submit', async (e) => {
     await startApp();
   } catch (err) {
     $('#login-error').text(err.message || String(err)).removeClass('d-none');
-  } finally { $btn.prop('disabled', false).text('Sign in'); }
+    $('.auth-card').removeClass('shake'); void $('.auth-card')[0].offsetWidth; $('.auth-card').addClass('shake');
+  } finally { $btn.prop('disabled', false).html('<span>Sign in</span><i class="bi bi-arrow-right"></i>'); }
 });
 $('#toggle-pw').on('click', () => {
   const $i = $('#login-password'); const show = $i.attr('type') === 'password';

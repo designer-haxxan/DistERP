@@ -127,7 +127,7 @@ async function renderList(el) {
     pager($el.find('.list'), list, (p) => {
       const low = p.trackStock !== false && p.stock <= (p.minStock || 0);
       return `<button class="list-row" data-id="${esc(p.id)}">
-        ${p.image ? `<img class="thumb" src="${p.image}" alt="" loading="lazy">` : '<div class="thumb"><i class="bi bi-box"></i></div>'}
+        ${p.image ? `<img class="thumb" src="${p.image}" alt="" loading="lazy">` : UI.avatar(p.name)}
         <div class="main"><div class="title">${esc(p.name)} ${p.active ? '' : '<span class="badge text-bg-secondary">Inactive</span>'}</div>
           <div class="sub">${esc([p.sku, p.barcode, Catalog.category(p.categoryId)?.name].filter(Boolean).join(' · ') || '—')}</div></div>
         <div class="end"><div class="fw-semibold money">${money(p.salePrice)}</div>

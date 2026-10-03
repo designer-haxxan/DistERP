@@ -119,12 +119,46 @@ export function pick({ title, search, noneLabel = null, placeholder = 'Search…
 }
 
 export function emptyState(text, icon = 'inbox', action = '') {
-  return `<div class="empty-state text-center text-body-secondary py-5"><i class="bi bi-${icon} display-6 d-block mb-2"></i><div>${esc(text)}</div>${action}</div>`;
+  return `<div class="empty-state text-center text-body-secondary"><div class="es-icon"><i class="bi bi-${icon}"></i></div><div class="fw-medium">${esc(text)}</div>${action}</div>`;
 }
 export function errorState(err) {
   return `<div class="alert alert-danger m-3"><i class="bi bi-exclamation-octagon me-2"></i>${esc(err?.message || err)}</div>`;
 }
-export const spinner = (text = 'Loading…') => `<div class="text-center py-5 text-body-secondary"><div class="spinner-border spinner-border-sm me-2"></div>${esc(text)}</div>`;
+// Skeleton placeholder while a page loads (text is kept for screen readers).
+export const spinner = (text = 'Loading…') => `<div class="skeleton py-2" role="status" aria-label="${esc(text)}">
+  <div class="skel" style="height:28px;width:40%"></div><div class="skel" style="height:110px"></div>
+  <div class="d-flex gap-2"><div class="skel flex-fill" style="height:70px"></div><div class="skel flex-fill" style="height:70px"></div></div>
+  <div class="skel" style="height:220px"></div></div>`;
+
+// Coloured initials avatar; the colour is derived from the name so it stays the same everywhere.
+const TINTS = ['indigo', 'violet', 'green', 'amber', 'cyan', 'pink', 'red', 'slate'];
+export function tintFor(name) {
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return TINTS[h % TINTS.length];
+}
+export function initials(name) {
+  const words = String(name || '?').trim().split(/\s+/).filter(Boolean);
+  return ((words[0]?.[0] || '?') + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
+}
+export const avatar = (name, cls = '') => `<div class="avatar tint-${tintFor(name)} ${cls}" aria-hidden="true">${esc(initials(name))}</div>`;
+
+// Animate numbers in [data-count] elements from 0 to their value (formatted by fmt). Skipped for reduced motion.
+export function countUp(root, fmt) {
+  const els = root.querySelectorAll('[data-count]');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  els.forEach((el) => {
+    const end = Number(el.dataset.count) || 0;
+    if (reduce || !end) { el.textContent = fmt(end, el); return; }
+    const t0 = performance.now(); const dur = 700;
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / dur); const e = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(p < 1 ? end * e : end, el);
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
 
 let loadingCount = 0;
 export function loading(on, text = 'Please wait…') {

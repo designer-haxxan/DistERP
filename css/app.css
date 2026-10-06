@@ -183,6 +183,11 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 [data-bs-theme="dark"] .auth-foot { color: var(--bs-secondary-color); }
 .auth-note { color: rgba(255, 255, 255, .6); font-size: .78rem; text-align: center; margin-top: 14px; }
 #toggle-pw { z-index: 5; }
+/* Login link: auto-filled credentials hint + highlighted Sign in button */
+.link-login-hint { font-family: 'Jameel Noori Nastaleeq', var(--bs-body-font-family); font-size: 1.15rem; line-height: 1.9; text-align: center; color: #065f46; background: #d1fae5; border: 1px solid #6ee7b7; border-radius: 12px; padding: 6px 12px; margin-bottom: 12px; animation: fadeUp .4s var(--ease) both; }
+[data-bs-theme="dark"] .link-login-hint { color: #a7f3d0; background: rgba(16, 185, 129, .15); border-color: rgba(110, 231, 183, .35); }
+.btn-login.btn-attention { background: linear-gradient(135deg, #16a34a, #22c55e); box-shadow: 0 10px 24px -6px rgba(22, 163, 74, .6); animation: attentionPulse 1.6s ease-in-out infinite; }
+@keyframes attentionPulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34, 197, 94, .55); } 50% { transform: scale(1.03); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } }
 
 /* ================= Layout ================= */
 #view-app { min-height: 100vh; }

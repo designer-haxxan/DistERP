@@ -4,14 +4,13 @@ import { CONFIG } from '../config.js';
 export const DB_NAME = `${CONFIG.APP_ID}_pos`;
 // Database name used by older builds (shared with other apps on the same origin). Never modified; only read on import.
 export const LEGACY_DB_NAME = 'saleapp_pos';
-export const DB_VERSION = 2;
+export const DB_VERSION = 1;
 
 // Stores that make up the business data (included in backups).
 export const DATA_STORES = [
   'categories', 'products', 'customers', 'suppliers', 'accounts',
   'sales', 'saleItems', 'purchases', 'purchaseItems', 'saleReturns', 'purchaseReturns',
   'vouchers', 'entries', 'stockMoves', 'adjustments', 'holds', 'auditLog', 'meta',
-  'batches', 'supplierPricing',
 ];
 
 const STORES = {
@@ -33,8 +32,6 @@ const STORES = {
   adjustments: { indexes: { number: ['number', true], date: 'date' } },
   holds: { indexes: { createdAt: 'createdAt' } },
   auditLog: { indexes: { at: 'at' } },
-  batches: { indexes: { productId: 'productId', expiryDate: 'expiryDate', status: 'status', createdAt: 'createdAt' } },
-  supplierPricing: { indexes: { supplierId: 'supplierId', productId: 'productId', supplierProductId: ['supplierId', 'productId'] } },
 };
 
 export const SYSTEM_ACCOUNTS = [
@@ -64,21 +61,5 @@ export function upgrade(db, oldVersion, t) {
     t.objectStore('meta').put({ key: 'schemaVersion', value: 1 });
     t.objectStore('meta').put({ key: 'createdAt', value: now });
   }
-  if (oldVersion < 2) {
-    // Add batches and supplierPricing stores for batch tracking and supplier management
-    if (!db.objectStoreNames.contains('batches')) {
-      const batchStore = db.createObjectStore('batches', { keyPath: 'id' });
-      batchStore.createIndex('productId', 'productId', { unique: false });
-      batchStore.createIndex('expiryDate', 'expiryDate', { unique: false });
-      batchStore.createIndex('status', 'status', { unique: false });
-      batchStore.createIndex('createdAt', 'createdAt', { unique: false });
-    }
-    if (!db.objectStoreNames.contains('supplierPricing')) {
-      const pricingStore = db.createObjectStore('supplierPricing', { keyPath: 'id' });
-      pricingStore.createIndex('supplierId', 'supplierId', { unique: false });
-      pricingStore.createIndex('productId', 'productId', { unique: false });
-      pricingStore.createIndex('supplierProductId', ['supplierId', 'productId'], { unique: false });
-    }
-    t.objectStore('meta').put({ key: 'schemaVersion', value: 2 });
-  }
+  // Future migrations: if (oldVersion < 2) { ... }
 }

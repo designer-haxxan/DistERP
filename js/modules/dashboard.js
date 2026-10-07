@@ -8,7 +8,6 @@ import * as Auth from '../services/auth.js';
 import * as Catalog from '../services/catalog.js';
 import * as Posting from '../services/posting.js';
 import * as Backup from '../services/backup.js';
-import * as Batch from './batch.js';
 
 const $ = window.jQuery;
 
@@ -109,7 +108,7 @@ export default {
     this.destroy();
     const $el = $(el);
     const u = Auth.user();
-    const [f, bal, wk, expiringBatches] = await Promise.all([todayFigures(), Posting.allBalances(), weekFigures(), Batch.getExpiringBatches(7)]);
+    const [f, bal, wk] = await Promise.all([todayFigures(), Posting.allBalances(), weekFigures()]);
     let rec = 0; let pay = 0; let cash = 0;
     for (const [id, b] of bal) {
       if (id.startsWith('C:') && b.balance > 0) rec += b.balance;
@@ -163,7 +162,6 @@ export default {
         ${tile('#/purchases', 'bag-check', 'violet', 'Purchases', `${f.purchasesCount} today · ${esc(cur())} ${fmtNum(f.purchases)}`, 'purchase.manage')}
         ${tile('#/products', 'box-seam', 'cyan', 'Products', `${prods.length} active items`)}
         ${tile('#/stock', 'boxes', low.length ? 'red' : 'green', 'Inventory', low.length ? `${low.length} low / out of stock` : 'All stock levels fine')}
-        ${tile('#/batches', 'calendar-event', expiringBatches.length ? 'red' : 'amber', 'Batch & Expiry', expiringBatches.length ? `${expiringBatches.length} expiring soon` : 'All batches fine', 'stock.manage')}
         ${tile('#/customers', 'people', 'pink', 'Customers', `${customers} · due ${esc(cur())} ${fmtNum(rec)}`)}
         ${tile('#/suppliers', 'truck', 'slate', 'Suppliers', `${suppliers} · payable ${esc(cur())} ${fmtNum(pay)}`, 'purchase.manage')}
         ${tile('#/accounts', 'bank', 'green', 'Accounts', `Cash & bank ${esc(cur())} ${fmtNum(cash)}`, 'account.manage')}
@@ -201,19 +199,8 @@ export default {
       <div class="row g-3 mt-1">
         <div class="col-md-6"><div class="section-title mt-0"><h2>Recent sales</h2><a href="#/sales">View all</a></div>
           <div class="list-card">${f.recent.map((s) => `<a class="list-row" href="#/sales/${encodeURIComponent(s.id)}">${UI.avatar(s.customerName, 'round')}<div class="main"><div class="title">${esc(s.customerName)}</div><div class="sub">${esc(s.number)} · ${fmtTime(s.createdAt)}</div></div><div class="end"><div class="fw-bold money">${fmtNum(s.total)}</div>${s.balance > 0.004 ? '<span class="badge text-bg-warning">Credit</span>' : '<span class="badge bg-success-subtle text-success-emphasis">Paid</span>'}</div></a>`).join('') || UI.emptyState('No sales yet today', 'receipt')}</div></div>
-        <div class="col-md-6"><div class="section-title mt-0"><h2>Expiring batches</h2><a href="#/batches">Manage</a></div>
-          <div class="list-card">${expiringBatches.slice(0, 6).map((b) => {
-            const product = Catalog.findProductById(b.productId);
-            const daysLeft = Math.ceil((new Date(b.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-            return `<a class="list-row" href="#/batches/${encodeURIComponent(b.id)}">${UI.avatar(product?.name || b.productId)}<div class="main"><div class="title">${esc(product?.name || b.productId)}</div><div class="sub">Expires: ${esc(b.expiryDate)}</div></div><div class="end"><span class="badge ${daysLeft <= 3 ? 'text-bg-danger' : 'text-bg-warning'}"><i class="bi bi-${daysLeft <= 3 ? 'exclamation-triangle' : 'clock'} me-1"></i>${daysLeft} days</span></div></a>`;
-          }).join('') || UI.emptyState('All batches are fine', 'check2-circle')}</div></div>
-      </div>
-
-      <div class="row g-3 mt-1">
         <div class="col-md-6"><div class="section-title mt-0"><h2>Low stock</h2><a href="#/stock">Inventory</a></div>
           <div class="list-card">${low.slice(0, 6).map((p) => `<a class="list-row" href="#/stock/${encodeURIComponent(p.id)}">${UI.avatar(p.name)}<div class="main"><div class="title">${esc(p.name)}</div><div class="sub">Minimum ${fmtQty(p.minStock || 0)} ${esc(p.unit || '')}</div></div><div class="end"><span class="badge ${p.stock <= 0 ? 'text-bg-danger' : 'text-bg-warning'}"><i class="bi bi-${p.stock <= 0 ? 'x-octagon' : 'exclamation-triangle'} me-1"></i>${fmtQty(p.stock)} ${esc(p.unit || '')}</span></div></a>`).join('') || UI.emptyState('All stock levels are fine', 'check2-circle')}</div></div>
-        <div class="col-md-6"><div class="section-title mt-0"><h2>Supplier status</h2><a href="#/suppliers">Suppliers</a></div>
-          <div class="list-card"><a class="list-row" href="#/suppliers"><i class="bi bi-truck" style="font-size:1.5rem;color:var(--bs-primary);"></i><div class="main"><div class="title">${suppliers} active suppliers</div><div class="sub">Payable ${esc(cur())} ${fmtNum(pay)}</div></div></a></div></div>
       </div>`);
 
     UI.countUp(el, (v, node) => (node.dataset.money ? `${cur()} ${fmtNum(v)}` : String(Math.round(v))));

@@ -6,7 +6,6 @@ import { esc } from './core/utils.js';
 import { openDB } from './db/idb.js';
 import * as Auth from './services/auth.js';
 import * as Catalog from './services/catalog.js';
-import { initLanguageSystem } from './i18n/i18n.js';
 
 const $ = window.jQuery;
 
@@ -20,9 +19,8 @@ const ROUTES = {
   returns: [() => import('./modules/documents.js'), 'Returns', null, 'arrow-return-left', 'Main'],
   products: [() => import('./modules/products.js'), 'Products', null, 'box-seam', 'Inventory'],
   stock: [() => import('./modules/stock.js'), 'Stock', null, 'boxes', 'Inventory'],
-  batches: [() => import('./modules/batch.js'), 'Batch & Expiry Tracking', 'stock.manage', 'calendar-event', 'Inventory'],
   customers: [() => import('./modules/parties.js'), 'Customers', null, 'people', 'Parties'],
-  suppliers: [() => import('./modules/suppliers.js'), 'Suppliers & Pricing', 'purchase.manage', 'truck-frontbed', 'Parties'],
+  suppliers: [() => import('./modules/parties.js'), 'Suppliers', 'purchase.manage', 'truck', 'Parties'],
   vouchers: [() => import('./modules/vouchers.js'), 'Cash Book & Payments', 'voucher.create', 'cash-coin', 'Accounts'],
   accounts: [() => import('./modules/accounts.js'), 'Accounts', 'account.manage', 'bank', 'Accounts'],
   reports: [() => import('./reports/reports.js'), 'Reports', 'reports.view', 'bar-chart-line', 'Accounts'],
@@ -209,7 +207,6 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', a
 // ---------- Boot ----------
 (async function boot() {
   applyTheme();
-  initLanguageSystem(); // Initialize bilingual support
   registerSW();
   if (!window.jQuery || !window.bootstrap) return fatal('Required libraries failed to load. Connect to the internet once so the app can be cached for offline use.');
   try { await openDB(); } catch (e) { return fatal('Could not open the local database: ' + (e.message || e)); }

@@ -162,6 +162,8 @@ export async function saveSale(input) {
   if (tendered < 0) throw new AppError('Paid amount cannot be negative.');
   const paid = round2(Math.min(tendered, calc.total));
   if (!customerId && paid < calc.total - 0.001) throw new AppError('Walk-in sales must be fully paid. Select a customer to sell on credit.');
+  // Support split payments: input.payments = [{accountId, amount}, ...]
+  const payments = input.payments && input.payments.length > 0 ? input.payments : null;
   const ctx = newCtx();
 
   const sale = await idb.write(SALE_STORES, async (t) => {
@@ -205,6 +207,7 @@ export async function saveSale(input) {
       chargeLabel: clean(input.chargeLabel, 40) || existing?.chargeLabel || '', total: calc.total,
       order, tendered, paid, change: round2(Math.max(0, tendered - calc.total)), balance: round2(calc.total - paid),
       paymentAccountId: acc.id, paymentAccountName: acc.name,
+      payments: payments || null, // Split payments: [{accountId, amount}, ...]
       paymentType: paid >= calc.total ? 'paid' : paid > 0 ? 'partial' : 'credit',
       status: 'completed', note: clean(input.note, 500), edited: editing || !!existing?.edited, ...stamp(),
     };
@@ -226,10 +229,14 @@ export async function saveSale(input) {
     const net = round2(calc.total - calc.tax - calc.charge);
     const C = customerId && partyAccount('customers', customerId);
     const chargeLine = ['charges', 0, calc.charge, doc.chargeLabel || 'Charges'];
+    // Split payments: create ledger entry for each payment account
+    const paymentLines = payments
+      ? payments.map(p => [p.accountId, round2(p.amount), 0, `Payment received (${p.accountId})`])
+      : [[acc.id, paid, 0, 'Payment received']];
     await addEntries(t, doc, 'sale', customerId ? [
       [C, calc.total, 0, 'Sale'], ['sales', 0, net, 'Sale'], ['tax', 0, calc.tax, 'Sales tax'], chargeLine,
-      [acc.id, paid, 0, 'Payment received'], [C, 0, paid, 'Payment received'],
-    ] : [[acc.id, calc.total, 0, 'Cash sale'], ['sales', 0, net, 'Sale'], ['tax', 0, calc.tax, 'Sales tax'], chargeLine]);
+      ...paymentLines, [C, 0, paid, 'Payment received'],
+    ] : [...paymentLines, ['sales', 0, net, 'Sale'], ['tax', 0, calc.tax, 'Sales tax'], chargeLine]);
     await audit(t, editing ? 'sale_edited' : 'sale_created', { number, total: calc.total });
     return doc;
   });

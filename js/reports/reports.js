@@ -104,6 +104,30 @@ export const REPORTS = {
       };
     },
   },
+  'payment-methods': {
+    title: 'Payments by method', icon: 'credit-card', group: 'Sales', filters: ['range'],
+    async run({ from, to }) {
+      const sales = live(await byDate('sales', from, to));
+      const by = new Map(); // accountId → {name, total, paid, count}
+      for (const s of sales) {
+        // Support split payments (payments array) or single payment (paymentAccountId)
+        const accs = s.payments ? s.payments.map(p => ({ id: p.accountId, amount: p.amount })) : [{ id: s.paymentAccountId, amount: s.paid }];
+        for (const ac of accs) {
+          const key = ac.id;
+          if (!by.has(key)) by.set(key, { name: s.paymentAccountName, total: 0, paid: 0, count: 0 });
+          const b = by.get(key);
+          b.total += s.total; b.paid += ac.amount; b.count++;
+        }
+      }
+      const rows = [...by.values()].map((b) => [b.name, b.count, b.total, b.paid]);
+      return {
+        summary: [['Total invoices', sales.length], ['Total sales', money(sum(sales, 'total'))], ['Total collected', money(sum(sales, 'paid'))]],
+        cols: [C('Payment account'), C('Invoices'), C('Amount', 'money'), C('Collected', 'money')],
+        rows,
+        foot: ['Total', sum(rows, (r) => r[1]), sum(rows, (r) => r[2]), sum(rows, (r) => r[3])],
+      };
+    },
+  },
   sales: {
     title: 'Sales by date range', icon: 'receipt', group: 'Sales', filters: ['range', 'customer'],
     async run({ from, to, customer }) {

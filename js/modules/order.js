@@ -361,16 +361,30 @@ async function payDialog() {
   let method = pref.get('payAccount', 'cash');
   if (!accounts.some((a) => a.id === method)) method = 'cash';
   let received = null; // null = exact amount
+  let splitMode = false; // toggle for split payment
+  let splitPayments = []; // array of {accountId, amount}
   const m = UI.modal({
     title: 'Payment', static: true, size: 'md',
     body: `<div class="pay-total-box"><div class="pay-label">${bi('Amount to pay', 'کل رقم')}</div><div class="pay-total money"></div><div class="pay-break small"></div></div>
-      <div class="pay-methods">${accounts.map((a) => `<button type="button" class="pay-method" data-m="${esc(a.id)}"><i class="bi bi-${a.type === 'cash' ? 'cash-stack' : 'credit-card-2-front'}"></i>${esc(a.name)}</button>`).join('')}
-        ${o.customerId ? `<button type="button" class="pay-method" data-m="credit"><i class="bi bi-journal-text"></i>${bi('Pay later', 'ادھار / کھاتہ')}</button>` : ''}</div>
-      <div class="pay-cash">
-        <label class="form-label mt-2">${bi('Cash received', 'وصول رقم')}</label>
-        <input class="form-control form-control-lg pay-in money text-center" inputmode="decimal" placeholder="0">
-        <div class="pay-quick"></div>
-        <div class="pay-change"></div>
+      <div class="pay-mode-toggle mb-2"><button type="button" class="btn btn-sm btn-outline-secondary pay-single-btn active">Single</button><button type="button" class="btn btn-sm btn-outline-secondary pay-split-btn">Split</button></div>
+      <div class="pay-single-mode">
+        <div class="pay-methods">${accounts.map((a) => `<button type="button" class="pay-method" data-m="${esc(a.id)}"><i class="bi bi-${a.type === 'cash' ? 'cash-stack' : 'credit-card-2-front'}"></i>${esc(a.name)}</button>`).join('')}
+          ${o.customerId ? `<button type="button" class="pay-method" data-m="credit"><i class="bi bi-journal-text"></i>${bi('Pay later', 'ادھار / کھاتہ')}</button>` : ''}</div>
+        <div class="pay-cash">
+          <label class="form-label mt-2">${bi('Cash received', 'وصول رقم')}</label>
+          <input class="form-control form-control-lg pay-in money text-center" inputmode="decimal" placeholder="0">
+          <div class="pay-quick"></div>
+          <div class="pay-change"></div>
+        </div>
+      </div>
+      <div class="pay-split-mode d-none">
+        <div class="pay-split-list"></div>
+        <div class="pay-split-form mt-2 row g-2">
+          <div class="col-8"><select class="form-select pay-split-select">${accounts.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('')}</select></div>
+          <div class="col-4"><input class="form-control pay-split-amount money" inputmode="decimal" placeholder="Amount"></div>
+          <div class="col-12"><button type="button" class="btn btn-sm btn-success w-100 pay-split-add">Add</button></div>
+        </div>
+        <div class="pay-split-summary mt-2 small"></div>
       </div>
       <details class="pay-more mt-2"><summary>Discount${o.type === 'delivery' ? ' / delivery charge' : ''}</summary>
         <div class="row g-2 mt-1">
@@ -388,25 +402,52 @@ async function payDialog() {
     const t = tot();
     $m.find('.pay-total').text(`${cur()} ${fmtNum(t.total)}`);
     $m.find('.pay-break').text([t.discount ? `Discount ${fmtNum(t.discount)}` : '', t.tax ? `Tax ${fmtNum(t.tax)}` : '', t.charge ? `${Orders.chargeLabel(o)} ${fmtNum(t.charge)}` : ''].filter(Boolean).join(' · '));
-    $m.find('.pay-method').removeClass('active').filter(`[data-m="${CSS.escape(method)}"]`).addClass('active');
-    const credit = method === 'credit';
-    const isCash = accounts.find((a) => a.id === method)?.type === 'cash';
-    $m.find('.pay-cash').toggleClass('d-none', credit || !isCash);
-    const quick = [t.total];
-    [100, 500, 1000, 5000].forEach((u) => { const v = Math.ceil(t.total / u) * u; if (v > t.total && !quick.includes(v) && quick.length < 5) quick.push(v); });
-    $m.find('.pay-quick').html(quick.map((v, i) => `<button type="button" class="btn btn-outline-success" data-v="${v}">${i === 0 ? 'Exact' : fmtNum(v)}</button>`).join(''));
-    const got = received === null ? t.total : received;
-    if (received === null) $m.find('.pay-in').val(t.total);
-    const change = round2(got - t.total);
-    $m.find('.pay-change').html(credit ? '' : change >= 0
-      ? `<div class="change-box ok">${bi('Give back', 'واپس کریں')}<b class="money">${esc(cur())} ${fmtNum(change)}</b></div>`
-      : `<div class="change-box short">${bi('Short by', 'کم ہیں')}<b class="money">${esc(cur())} ${fmtNum(-change)}</b></div>`);
-    $m.find('.pay-done').prop('disabled', !credit && isCash && change < 0);
+    if (!splitMode) {
+      $m.find('.pay-method').removeClass('active').filter(`[data-m="${CSS.escape(method)}"]`).addClass('active');
+      const credit = method === 'credit';
+      const isCash = accounts.find((a) => a.id === method)?.type === 'cash';
+      $m.find('.pay-cash').toggleClass('d-none', credit || !isCash);
+      const quick = [t.total];
+      [100, 500, 1000, 5000].forEach((u) => { const v = Math.ceil(t.total / u) * u; if (v > t.total && !quick.includes(v) && quick.length < 5) quick.push(v); });
+      $m.find('.pay-quick').html(quick.map((v, i) => `<button type="button" class="btn btn-outline-success" data-v="${v}">${i === 0 ? 'Exact' : fmtNum(v)}</button>`).join(''));
+      const got = received === null ? t.total : received;
+      if (received === null) $m.find('.pay-in').val(t.total);
+      const change = round2(got - t.total);
+      $m.find('.pay-change').html(credit ? '' : change >= 0
+        ? `<div class="change-box ok">${bi('Give back', 'واپس کریں')}<b class="money">${esc(cur())} ${fmtNum(change)}</b></div>`
+        : `<div class="change-box short">${bi('Short by', 'کم ہیں')}<b class="money">${esc(cur())} ${fmtNum(-change)}</b></div>`);
+      $m.find('.pay-done').prop('disabled', !credit && isCash && change < 0);
+    } else {
+      const paid = sum(splitPayments, (p) => p.amount);
+      const short = t.total - paid;
+      $m.find('.pay-split-list').html(splitPayments.map((p, i) => {
+        const acc = accounts.find((a) => a.id === p.accountId);
+        return `<div class="pay-split-item mb-2 p-2 border rounded">
+          <div class="d-flex justify-content-between align-items-center">
+            <span>${esc(acc?.name || p.accountId)}: <b class="money">${esc(cur())} ${fmtNum(p.amount)}</b></span>
+            <button type="button" class="btn btn-sm btn-link text-danger pay-split-remove" data-i="${i}">✕</button>
+          </div></div>`;
+      }).join(''));
+      $m.find('.pay-split-summary').html(`Total: <b class="money">${esc(cur())} ${fmtNum(paid)}</b> ${short > 0.01 ? `<span class="text-danger">Short ${esc(cur())} ${fmtNum(short)}</span>` : short < -0.01 ? `<span class="text-success">Extra ${esc(cur())} ${fmtNum(-short)}</span>` : '<span class="text-success">✓</span>'}`);
+      $m.find('.pay-done').prop('disabled', short > 0.01 || short < -0.01);
+    }
   };
+  $m.on('click', '.pay-single-btn', function () { splitMode = false; $m.find('.pay-single-mode').removeClass('d-none'); $m.find('.pay-split-mode').addClass('d-none'); $(this).addClass('active').siblings('.pay-split-btn').removeClass('active'); update(); });
+  $m.on('click', '.pay-split-btn', function () { splitMode = true; $m.find('.pay-split-mode').removeClass('d-none'); $m.find('.pay-single-mode').addClass('d-none'); $(this).addClass('active').siblings('.pay-single-btn').removeClass('active'); update(); });
   $m.on('click', '.pay-method', function () { method = this.dataset.m; update(); });
   $m.on('input', '.pay-in', function () { received = num(this.value); update(); });
   $m.on('focus', '.pay-in', function () { this.select(); });
   $m.on('click', '.pay-quick [data-v]', function () { received = num(this.dataset.v); $m.find('.pay-in').val(received); update(); });
+  $m.on('click', '.pay-split-add', function () {
+    const acc = $m.find('.pay-split-select').val();
+    const amt = num($m.find('.pay-split-amount').val());
+    if (amt > 0) {
+      splitPayments.push({ accountId: acc, amount: round2(amt) });
+      $m.find('.pay-split-amount').val('');
+      update();
+    }
+  });
+  $m.on('click', '.pay-split-remove', function () { splitPayments.splice(num(this.dataset.i), 1); update(); });
   $m.on('input', '.pay-disc', function () { o.discount = Math.max(0, num(this.value)); $m.find('.pay-pct').val(''); update(); });
   $m.on('input', '.pay-pct', function () {
     const pct = Math.min(100, Math.max(0, num(this.value)));
@@ -421,18 +462,25 @@ async function payDialog() {
     $m.find('.pay-error').addClass('d-none');
     try {
       const t = tot();
-      const credit = method === 'credit';
-      const acc = credit ? 'cash' : method;
-      if (!credit) pref.set('payAccount', method);
-      const isCash = accounts.find((a) => a.id === acc)?.type === 'cash';
-      const tendered = credit ? 0 : isCash ? (received === null ? t.total : received) : t.total;
       if (!(await sendKitchen({ quiet: true }))) throw new AppError('Could not send the order to the kitchen.');
       await flush();
-      const { doc } = await Posting.saveSale({
+      const saleDoc = {
         id: saleId, items: o.lines.filter((l) => l.qty > 0).map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, rate: l.rate, discount: 0, note: l.note })),
-        discount: t.discount, taxRate: Orders.taxRate(), charge: t.charge, chargeLabel: Orders.chargeLabel(o), tendered, paymentAccountId: acc,
+        discount: t.discount, taxRate: Orders.taxRate(), charge: t.charge, chargeLabel: Orders.chargeLabel(o),
         customerId: o.customerId || null, customerName: o.customerName || '', orderId: o.id,
-      });
+      };
+      if (splitMode) {
+        saleDoc.payments = splitPayments;
+        saleDoc.tendered = sum(splitPayments, (p) => p.amount);
+      } else {
+        const credit = method === 'credit';
+        const acc = credit ? 'cash' : method;
+        if (!credit) pref.set('payAccount', method);
+        const isCash = accounts.find((a) => a.id === acc)?.type === 'cash';
+        saleDoc.paymentAccountId = acc;
+        saleDoc.tendered = credit ? 0 : isCash ? (received === null ? t.total : received) : t.total;
+      }
+      const { doc } = await Posting.saveSale(saleDoc);
       const doPrint = $m.find('#pay-print').prop('checked');
       if (o.type !== 'take') Orders.closeTickets(o.id).catch(console.warn);
       m.close();

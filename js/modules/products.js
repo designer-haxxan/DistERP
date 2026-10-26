@@ -162,7 +162,8 @@ async function productActions(p, redraw) {
         <button class="btn btn-primary btn-edit"><i class="bi bi-pencil me-1"></i>Edit product</button>
         <a class="btn btn-outline-secondary" href="#/stock/${encodeURIComponent(p.id)}"><i class="bi bi-clock-history me-1"></i>Stock ledger</a>
         ${Auth.can('stock.adjust') && p.trackStock !== false ? `<a class="btn btn-outline-secondary" href="#/stock/adjust/${encodeURIComponent(p.id)}"><i class="bi bi-sliders me-1"></i>Adjust stock</a>` : ''}
-        ${Auth.can('product.delete') ? '<button class="btn btn-outline-danger btn-del"><i class="bi bi-trash me-1"></i>Delete</button>' : ''}
+        ${Auth.can('product.delete') ? `<button class="btn btn-outline-danger btn-del"><i class="bi bi-trash me-1"></i>${p.active ? 'Delete' : 'Delete if unused'}</button>
+          <button class="btn btn-danger btn-del-perm"><i class="bi bi-trash3-fill me-1"></i>Delete permanently</button>` : ''}
       </div>` });
   m.$el.find('a').on('click', () => m.close());
   m.$el.find('.btn-edit').on('click', async () => { m.close(); await m.closed; if (await editProduct(p)) redraw(); });
@@ -170,6 +171,15 @@ async function productActions(p, redraw) {
     m.close(); await m.closed;
     if (!await UI.confirmDialog(`Delete "${p.name}"? Products with transactions are deactivated instead.`, { okLabel: 'Delete', okClass: 'btn-danger' })) return;
     try { const r = await Posting.deleteProduct(p.id); UI.toast(r === 'deleted' ? 'Product deleted' : 'Product deactivated (has transactions)'); redraw(); } catch (e) { UI.toastError(e); }
+  });
+  m.$el.find('.btn-del-perm').on('click', async () => {
+    m.close(); await m.closed;
+    if (!await UI.confirmDialog(`<p>Permanently delete <b>${esc(p.name)}</b>? This cannot be undone.</p>
+      <ul class="small mb-0"><li>The product and its stock history are removed.</li>
+      <li>Old sales and purchases still show this item and their amounts; accounts are not changed.</li>
+      <li>Documents containing it can no longer be edited, and the item cannot be returned.</li></ul>`,
+    { title: 'Delete permanently', okLabel: 'Delete permanently', okClass: 'btn-danger', html: true })) return;
+    try { await Posting.deleteProduct(p.id, { permanent: true }); UI.toast('Product permanently deleted'); redraw(); } catch (e) { UI.toastError(e); }
   });
 }
 

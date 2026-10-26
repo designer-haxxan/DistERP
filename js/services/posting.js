@@ -596,7 +596,9 @@ export async function saveProduct(data) {
   return rec;
 }
 
-export async function deleteProduct(id) {
+// permanent: also delete a product that has transactions. Past documents keep their own copy of the item name
+// and amounts, and the ledger is unaffected; only the product's stock history is removed.
+export async function deleteProduct(id, { permanent = false } = {}) {
   Auth.require('product.delete');
   const ctx = newCtx();
   const res = await idb.write(['products', 'stockMoves', 'saleItems', 'purchaseItems', 'auditLog'], async (t) => {
@@ -605,10 +607,10 @@ export async function deleteProduct(id) {
     const moves = await t.getAllByIndex('stockMoves', 'productId', id);
     const used = moves.some((m) => m.type !== 'opening') || await t.countByIndex('saleItems', 'productId', id) || await t.countByIndex('purchaseItems', 'productId', id);
     ctx.touched.add(id);
-    if (used) { p.active = 0; p.updatedAt = nowISO(); await t.put('products', p); await audit(t, 'deactivate_product', { name: p.name }); return 'deactivated'; }
+    if (used && !permanent) { p.active = 0; p.updatedAt = nowISO(); await t.put('products', p); await audit(t, 'deactivate_product', { name: p.name }); return 'deactivated'; }
     for (const m of moves) await t.delete('stockMoves', m.id);
     await t.delete('products', id);
-    await audit(t, 'delete_product', { name: p.name });
+    await audit(t, used ? 'delete_product_permanent' : 'delete_product', { name: p.name });
     return 'deleted';
   });
   await finish(ctx);
